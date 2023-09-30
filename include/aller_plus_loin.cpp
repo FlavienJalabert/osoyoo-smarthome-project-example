@@ -17,12 +17,12 @@ RFID rfid(48, 49); // D48--RFID module SDA pin、D49 RFID module RST pin
 LiquidCrystal_I2C lcd(0x3f, 16, 2);                // set the LCD address to 0x27 or 0x3f
 unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID value
 
-char ssid[] = "******"; // replace ****** with your network SSID (name)
-char pass[] = "******"; // replace ****** with your network password
+char ssid[] = "SFR_EB78"; // replace ****** with your network SSID (name)
+char pass[] = "Marioluigi1242"; // replace ****** with your network password
 int status = WL_IDLE_STATUS;
 
-#define Trig_PIN 25
-#define Echo_PIN 26
+#define Trig_PIN 25 // Trigger connected to digital pin 25 in ultrasonic pin
+#define Echo_PIN 26 // Echo connected to digital pin 26 in ultrasonic pin
 #define redPin 24   // R connected to digital pin 24
 #define greenPin 23 // G connected to digital pin 23
 #define bluePin 22  // B connected to digital pin 22
@@ -97,7 +97,7 @@ void sendHttpResponse(WiFiEspClient client)
 
 WiFiEspServer server(80);
 // use a ring buffer to increase speed and reduce memory allocation
-RingBuffer buf(32);
+RingBuffer buf(24);
 
 void setup()
 {
@@ -224,7 +224,7 @@ void loop()
 
       rfid.halt(); // Listen RFID module again in next loop
 
-      distance = watch(); // get supersonic distance in cm
+      distance = watch(); // get ultrasonic distance in cm
       if (distance < 20)  // someone is close to the house
       {
         // Serial.println("detected presence under 20cm");
