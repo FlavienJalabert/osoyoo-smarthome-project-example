@@ -17,7 +17,7 @@ RFID rfid(48, 49); // D48--RFID module SDA pin、D49 RFID module RST pin
 LiquidCrystal_I2C lcd(0x3f, 16, 2);                // set the LCD address to 0x27 or 0x3f
 unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID value
 
-char ssid[] = "SFR_EB78"; // replace ****** with your network SSID (name)
+char ssid[] = "SFR_EB78";       // replace ****** with your network SSID (name)
 char pass[] = "Marioluigi1242"; // replace ****** with your network password
 int status = WL_IDLE_STATUS;
 
@@ -42,7 +42,6 @@ int distance = 0;
 int lightStatus = 0;
 int ledStatusTime = 0;
 bool togglePushBTN = true;
-String servStr;
 
 int watch()
 {
@@ -78,11 +77,12 @@ void printWebAddress()
   // print where to go in the browser
   Serial.println("-------------------------------------------------------------------------------------------------");
   Serial.print("To see this page in action, open a browser to http://");
-  Serial.print(ip);
+  Serial.println(ip);
   Serial.println("-------------------------------------------------------------------------------------------------");
 }
-void sendHttpResponse(WiFiEspClient client)
+void sendHttpResponse(WiFiEspClient client, String servStr)
 {
+  Serial.println("SedingHTTPResponse");
   // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
   // and a content-type so the client knows what's coming, then a blank line:
   client.println("HTTP/1.1 200 OK");
@@ -169,6 +169,7 @@ void setup()
 
 void loop()
 {
+  String servStr;
   WiFiEspClient client = server.available(); // listen for incoming clients
   if (client)
   {                               // if you get a client,
@@ -177,7 +178,8 @@ void loop()
     while (client.connected())
     { // loop while the client's connected
       // search card
-      lcd.setCursor(8, 1);
+      lcd.setCursor(6, 1);
+      servStr = servStr + "<p>" + rfid.isCard() + "</p>";
       lcd.print(rfid.isCard());
       if (rfid.isCard())
       {
@@ -225,7 +227,8 @@ void loop()
       rfid.halt(); // Listen RFID module again in next loop
 
       distance = watch(); // get ultrasonic distance in cm
-      if (distance < 20)  // someone is close to the house
+      servStr = servStr + "<p>" + distance + "</p>";
+      if (distance < 20) // someone is close to the house
       {
         // Serial.println("detected presence under 20cm");
         lcd.clear();
@@ -245,6 +248,11 @@ void loop()
         lcd.print("cm");
       }
 
+      if (!digitalRead(RED_PUSH_BTN)) // Toggle motor red push button
+      {
+        togglePushBTN = !togglePushBTN; // toggle motor
+      }
+
       // DHT read temp and humidity level
       int chk = DHT.read11(DHT11);
       lcd.setCursor(8, 0);
@@ -257,20 +265,17 @@ void loop()
       lcd.setCursor(11, 1);
       lcd.print(round(DHT.humidity));
       lcd.print("%");
-      if (!digitalRead(RED_PUSH_BTN))
-      {
-        togglePushBTN = !togglePushBTN;
-      }
-      if (DHT.temperature >= 20)
+      servStr = servStr + "<p>T: " + round(DHT.temperature) + "</p><p>H: " + round(DHT.humidity) + "</p>";
+      if (DHT.temperature >= 25)
       {
         if (togglePushBTN)
         {
-          Serial.println("High temp detected, turning fan on");
+          // Serial.println("High temp detected, turning fan on");
           digitalWrite(MOTOR, HIGH);
         }
         else
         {
-          Serial.println("High temp detected, but emergency stop triggered");
+          // Serial.println("High temp detected, but emergency stop triggered");
           digitalWrite(MOTOR, LOW);
         }
       }
@@ -295,9 +300,10 @@ void loop()
       else
       {
         // Serial.println("Intruder detected");
+        servStr += "<p>Motion detected</p>";
         digitalWrite(RED_LED, HIGH);
         analogWrite(BUZZER, 0); // Set desired volume (0-100)
-        ledStatusTime = 5;
+        ledStatusTime = 5;      // Set Red LED timer to 5 seconds
       }
 
       lightStatus = digitalRead(light_sensor); // Read light sensor
@@ -306,27 +312,29 @@ void loop()
         digitalWrite(LAMP, HIGH); // turning on lamp
         lcd.setCursor(0, 1);
         lcd.print("NUIT");
+        servStr += "<p>NUIT</p>";
       }
       else
       {
         digitalWrite(LAMP, LOW); // Turning off lamp
         lcd.setCursor(0, 1);
         lcd.print("JOUR");
+        servStr += "<p>JOUR</p>";
       }
 
-      servStr = "<font color=GREEN><b>J'affiche du HTML !</b></font>";
+      servStr += "<font color=GREEN><b>CONNECTION REUSSIE !</b></font>";
       if (client.available())
       {                         // if there's bytes to read from the client,
         char c = client.read(); // read a byte, then
         buf.push(c);            // push it to the ring buffer
         // printing the stream to the serial monitor will slow down
         // the receiving of data from the ESP filling the serial buffer
-        Serial.write(c);
+        // Serial.write(c);
         // you got two newline characters in a row
         // that's the end of the HTTP request, so send a response
         if (buf.endsWith("\r\n\r\n"))
         {
-          sendHttpResponse(client);
+          sendHttpResponse(client, servStr);
           break;
         }
       }
