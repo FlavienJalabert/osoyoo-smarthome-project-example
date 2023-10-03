@@ -12,17 +12,19 @@
 SoftwareSerial softserial(A9, A8); // A9 to ESP_TX, A8 to ESP_RX by default
 // #endif
 
-// LIBS
+// LIBS OBJECTS DEFINITIONS
 dht DHT;
 Servo head;
 RFID rfid(48, 49); // D48--RFID module SDA pin、D49 RFID module RST pin
 
 // PROJECTS PARAMETERS
+WiFiEspServer server(80);                          // create the server on port 80 (change port here)
+RingBuffer buf(16);                                // use a ring buffer to increase speed and reduce memory allocation of 16 bytes (change number of bytes here)
 LiquidCrystal_I2C lcd(0x3f, 16, 2);                // set the LCD address to 0x27 or 0x3f
 unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID serial number
 char ssid[] = "SFR_EB78";                          // replace ****** with your network SSID (name)
 char pass[] = "Marioluigi1242";                    // replace ****** with your network password
-int maxTemp = 25;
+int maxTemp = 25;                                  // define the max temperature for high temperature actions
 
 // DECLARE PINS
 #define SERVO_PIN 3
@@ -41,20 +43,20 @@ int maxTemp = 25;
 #define Echo_PIN 26 // Echo connected to digital pin 26 in ultrasonic pin
 
 // CONST TIMINGS
-const int LCDInterval = 1000;        // number of millisecs between LCD print values
-const int readingInterval = 500;     // number of millisecs between readings
-const int switchLightInterval = 500; // number of millisecs between light can be switched again
-const int highTempInterval = 500;    // number of millisecs between checking if temp is high and turning on fan motor
-const int redledStatusTime = 5000;   // number of millisecs during red led should be up after a motion has been read
-const int doorOpenDuration = 5000;   // number of millisecs that the door must stay open before closing
+const int LCDInterval = 1000;        // millisecs between LCD print values
+const int readingInterval = 500;     // millisecs between readings
+const int switchLightInterval = 500; // millisecs between light can be switched again
+const int highTempInterval = 500;    // millisecs between checking if temp is high and turning on fan motor
+const int redledStatusTime = 5000;   // millisecs during red led should be up after a motion has been read
+const int doorOpenDuration = 5000;   // millisecs that the door must stay open before closing
 const int servoInterval = 20;        // millisecs between servo moves
 
 // the limits to servo movement
 const int servoMinDegrees = 20;  // fully open
 const int servoMaxDegrees = 135; // fully closed
+const int servoDegrees = 2;      // degree step for servo movement
 
 // VAR
-int servoDegrees = 2;                     // degree step for servo movement
 unsigned long currentMillis = 0;          // current millis is set at each loop()
 unsigned long previousServoMillis = 0;    // the time when the servo was last moved
 unsigned long previousReadingMillis = 0;  // the time when the sensors were last read
@@ -63,6 +65,7 @@ unsigned long previousHighTempMillis = 0; // the time when the motor was switche
 unsigned long redledStatusMillis = 0;     // the time when the redled was switched on last
 unsigned long doorOpenedTime = 0;         // the time when the door was fully opened
 int servoPosition = 135;                  // the current angle of the servo - starting at 135 (closed).
+bool doorNeedOpen = 0;                    // 0 = door don't need open, -1 = door need open, 1 = door need close
 String httpResponseLines[5];              // list of readings to be sent to HTTP page
 int status = WL_IDLE_STATUS;              // Wifi status
 long echo_distance;
@@ -72,14 +75,13 @@ int lightStatus = 0;
 int lastLightStatus = 1;
 int motionStatus = 1;
 bool togglePushBTN = true;
-bool doorNeedOpen = false;
 
 int watch()
 {
   digitalWrite(Trig_PIN, LOW);
   delayMicroseconds(5);
   digitalWrite(Trig_PIN, HIGH);
-  delayMicroseconds(15);
+  delayMicroseconds(10);
   digitalWrite(Trig_PIN, LOW);
   echo_distance = pulseIn(Echo_PIN, HIGH);
   echo_distance = echo_distance * 0.01657; // how far away is the object in cm
@@ -100,18 +102,8 @@ boolean compare_rfid(unsigned char x[], unsigned char y[]) // compare read RFID 
   }
   return true;
 }
-void printWebAddress()
-{
-  IPAddress ip = WiFi.localIP();
-  // print where to go in the browser
-  Serial.println("-------------------------------------------------------------------------------------------------");
-  Serial.print("To see this page in action, open a browser to http://");
-  Serial.println(ip);
-  Serial.println("-------------------------------------------------------------------------------------------------");
-}
 void sendHttpResponse(WiFiEspClient client)
 {
-  Serial.println("SedingHTTPResponse");
   // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
   // and a content-type so the client knows what's coming, then a blank line:
   client.println("HTTP/1.1 200 OK");
@@ -122,7 +114,7 @@ void sendHttpResponse(WiFiEspClient client)
   client.print("<meta http-equiv=\"refresh\" content=\"5\"/>");
   for (unsigned int i = 0; i < 5; i++)
   {
-    client.print(httpResponseLines[i]);
+    client.print(httpResponseLines[i]); // write to http response every sensors readings
   }
 }
 void doorOpenClose()
@@ -137,7 +129,7 @@ void doorOpenClose()
     }
     if (servoPosition <= servoMinDegrees) // if door is opened
     {
-      doorNeedOpen = -1;              // ask to close
+      doorNeedOpen = 1;               // ask to close
       doorOpenedTime = currentMillis; // set the door opened time
     }
     if (servoPosition >= servoMaxDegrees)
@@ -185,19 +177,19 @@ void highTemp()
 }
 void motionDetected()
 {
-  if (motionStatus == 0)
+  if (motionStatus == 0) // if no motion detected
   {
-    digitalWrite(BUZZER, LOW);
-    if (currentMillis - redledStatusMillis >= redledStatusTime)
+    digitalWrite(BUZZER, LOW);                                  // turn off buzzer
+    if (currentMillis - redledStatusMillis >= redledStatusTime) // RED LED has been on for 5 seconds without movement detected
     {
-      digitalWrite(RED_LED, LOW);
+      digitalWrite(RED_LED, LOW); // turn off RED LED
     }
   }
   else
   {
-    analogWrite(BUZZER, 0); // Set desired volume (0-100)
-    digitalWrite(RED_LED, HIGH);
-    redledStatusMillis = currentMillis;
+    analogWrite(BUZZER, 0);             // Set desired volume (0-100)
+    digitalWrite(RED_LED, HIGH);        // turn on red led
+    redledStatusMillis = currentMillis; // set timer for RED LED
   }
 }
 void checkRFID()
@@ -206,22 +198,22 @@ void checkRFID()
   {
     if (compare_rfid(rfid.serNum, my_rfid))
     {
-      color(0, 255, 0);
+      color(0, 255, 0); // put RGB led color to green
+      // write LCD access granted
       lcd.clear();
       lcd.backlight();
       lcd.setCursor(3, 0);
       lcd.print("Bienvenue!");
       lcd.setCursor(0, 1);
       lcd.print("Accès autorisé !");
-      doorNeedOpen = true;
+      doorNeedOpen = -1; // ask open door
     }
     else // WRONG RFID card
     {
-      color(255, 0, 0);
+      color(255, 0, 0); // flash RGB led red
     }
   }
   rfid.selectTag(rfid.serNum); // get the RFID card serial number
-  color(240, 125, 0);          // Put back RGB led to standby
 }
 void readings()
 {
@@ -229,16 +221,20 @@ void readings()
   {
     if (rfid.isCard())
     {
-      checkRFID();
+      checkRFID(); // if a card is read, we will check the serial number and do actions
+    }
+    else
+    {
+      color(240, 125, 0); // Put back RGB led to standby (yellow)
     }
     rfid.halt();
     chkdht = DHT.read11(DHT11);              // DHT read temp and humidity level
     distance = watch();                      // get ultrasonic distance in cm
     lightStatus = digitalRead(light_sensor); // Read light sensor
-    if (lightStatus != lastLightStatus)
+    if (lightStatus != lastLightStatus)      // if lightStatus is different from last lightStatus recorded
     {
-      switchLight();
-      lastLightStatus = lightStatus;
+      switchLight();                 // switch the lamp on or off
+      lastLightStatus = lightStatus; // record lightStatus
     }
     motionStatus = digitalRead(PIR); // Read PIR
     previousReadingMillis = currentMillis;
@@ -295,10 +291,15 @@ void printLCDReadings()
     previousLCDPrintMillis = currentMillis;
   }
 }
-
-// Start Server and create Buffer
-WiFiEspServer server(80);
-RingBuffer buf(16); // use a ring buffer to increase speed and reduce memory allocation
+void printWebAddress()
+{
+  IPAddress ip = WiFi.localIP();
+  // print where to go in the browser
+  Serial.println("-------------------------------------------------------------------------------------------------");
+  Serial.print("To see this page in action, open a browser to http://");
+  Serial.println(ip);
+  Serial.println("-------------------------------------------------------------------------------------------------");
+}
 
 void setup()
 {
@@ -328,7 +329,7 @@ void setup()
   // check for the presence of the shield
   if (WiFi.status() == WL_NO_SHIELD)
   {
-    Serial.println("WiFi shield not present");
+    Serial.println("WiFi shield not present !");
     // don't continue
     while (true)
       ;
@@ -343,11 +344,11 @@ void setup()
   }
   Serial.println("You're connected to the network");
   printWebAddress();
-  // start the web server on port 80
+  // start the web server on defined port
   server.begin();
-  // setting up http response values
-  // httpResponseLines[3] = "<p>no motion detected</p>";                                                       // needs a value by default
-  // httpResponseLines[4] = "<p>JOUR</p>";                                                                     // needs a value by default so let's say DAY
+  // setting udp http response values
+  // httpResponseLines[3] = "<p>no motion detected</p>";
+  // httpResponseLines[4] = "<p>JOUR</p>";
   httpResponseLines[5] = "<font color=GREEN><b>CONNECTION REUSSIE !</b></font><p>insérer le style ici</p>"; // Style for the HTTP page to monitor on browser
 
   lcd.init(); // Initialize LCD
@@ -356,8 +357,8 @@ void setup()
   rfid.init();      // Initialize RFID module
   rfid.antennaOn(); // turn on RFID antenna
   Serial.println("Initialized RFID module");
-  head.attach(SERVO_PIN); // Attach servo head to servo object
-  head.write(135);        // closing door by default
+  head.attach(SERVO_PIN);      // Attach servo head to servo object
+  head.write(servoMaxDegrees); // closing door by default
   delay(100);
   digitalWrite(SERVO_PIN, LOW);
   Serial.println("Closed the door by default");
@@ -368,7 +369,6 @@ void setup()
   lcd.print("Bonjour");
   lcd.setCursor(0, 1);
   lcd.print("<Formateur>");
-  // delay(1000);
   lcd.clear();
 }
 
@@ -381,34 +381,28 @@ void loop()
     while (client.connected())
     {                                 // loop while the client's connected
       currentMillis = millis();       // capture the latest value of millis()
-      if (!digitalRead(RED_PUSH_BTN)) // Toggle motor red push button status
+      if (!digitalRead(RED_PUSH_BTN)) // record button pressed
       {
-        togglePushBTN = !togglePushBTN; // toggle status
+        togglePushBTN = !togglePushBTN; // toggle button status
       }
       // Do things
       readings();
-      highTemp();
-      printLCDReadings();
       doorOpenClose();
+      highTemp();
       motionDetected();
+      printLCDReadings();
       // check connectivity
       if (client.available()) // if there's bytes to read from the client,
       {
-        char c = client.read(); // read a byte, then
-        buf.push(c);            // push it to the ring buffer
-        // printing the stream to the serial monitor will slow down
-        // the receiving of data from the ESP filling the serial buffer
-        // Serial.write(c);
-        // you got two newline characters in a row
-        // that's the end of the HTTP request, so send a response
-        if (buf.endsWith("\r\n\r\n"))
+        char c = client.read();       // read a byte, then
+        buf.push(c);                  // push it to the ring buffer
+        if (buf.endsWith("\r\n\r\n")) // if you get two new lines in a row it's the end of the request
         {
-          sendHttpResponse(client);
+          sendHttpResponse(client); // send the response
           break;
         }
       }
     }
-    // close the connection
-    client.stop();
+    client.stop(); // close the connection
   }
 }
