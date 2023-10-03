@@ -1,8 +1,4 @@
 #include <Arduino.h>
-// #ifndef HAVE_HWSERIAL1
-#include <SoftwareSerial.h>
-SoftwareSerial softserial(A9, A8); // A9 to ESP_TX, A8 to ESP_RX by default
-// #endif
 #include <math.h>
 #include <SPI.h>
 #include <dht.h>
@@ -16,20 +12,21 @@ RFID rfid(48, 49); // D48--RFID module SDA pin、D49 RFID module RST pin
 LiquidCrystal_I2C lcd(0x3f, 16, 2);                // set the LCD address to 0x27 or 0x3f
 unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID value
 
-#define Trig_PIN 25 // Trigger connected to digital pin 25 in ultrasonic pin
-#define Echo_PIN 26 // Echo connected to digital pin 26 in ultrasonic pin
-#define redPin 24   // R connected to digital pin 24
-#define greenPin 23 // G connected to digital pin 23
-#define bluePin 22  // B connected to digital pin 22
+// DECLARE PINS
 #define SERVO_PIN 3
 #define RED_LED 4
 #define PIR 5
 #define BUZZER 6
-#define light_sensor A0
-#define LAMP 13
 #define DHT11 10
-#define MOTOR A2
 #define RED_PUSH_BTN 11
+#define light_sensor 13
+#define LAMP A0
+#define MOTOR A2
+#define bluePin 22  // B connected to digital pin 22
+#define greenPin 23 // G connected to digital pin 23
+#define redPin 24   // R connected to digital pin 24
+#define Trig_PIN 25 // Trigger connected to digital pin 25 in ultrasonic pin
+#define Echo_PIN 26 // Echo connected to digital pin 26 in ultrasonic pin
 
 long echo_distance;
 int chkdht;
@@ -81,15 +78,11 @@ void setup()
     pinMode(LAMP, OUTPUT);        // initialize LAMP pin as an output.
     pinMode(Trig_PIN, OUTPUT);    // initialize digital pin Trig Pin as an output.
     pinMode(Echo_PIN, INPUT);     // initialize digital pin Echo Pin as an input.
-    pinMode(redPin, OUTPUT);      // set the redPin to be an output
-    pinMode(greenPin, OUTPUT);    // set the greenPin to be an output
-    pinMode(bluePin, OUTPUT);     // set the bluePin to be an output
+    pinMode(redPin, OUTPUT);      // set the RGB redPin to be an output
+    pinMode(greenPin, OUTPUT);    // set the RGB greenPin to be an output
+    pinMode(bluePin, OUTPUT);     // set the RGB bluePin to be an output
     Serial.begin(9600);           // initialize serial for debugging
-    softserial.begin(115200);
-    softserial.write("AT+CIOBAUD=9600\r\n");
-    softserial.write("AT+RST\r\n");
-    softserial.begin(9600); // initialize serial for ESP module
-    lcd.init();             // Initialize LCD
+    lcd.init();                   // Initialize LCD
     Serial.println("Initialized LCD");
     SPI.begin(); // Start up SPI IO
     head.attach(SERVO_PIN);
@@ -184,7 +177,7 @@ void loop()
     }
 
     // DHT read temp and humidity level
-    int chk = DHT.read11(DHT11);
+    chkdht = DHT.read11(DHT11);
     lcd.setCursor(8, 0);
     lcd.print("T:");
     lcd.setCursor(11, 0);
