@@ -9,8 +9,8 @@ Servo head;
 RFID rfid(48, 49); // D48--RFID module SDA pin、D49 RFID module RST pin
 #include <LiquidCrystal_I2C.h>
 
-LiquidCrystal_I2C lcd(0x3f, 16, 2);                // set the LCD address to 0x27 or 0x3f
-unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID value
+LiquidCrystal_I2C lcd(0x27, 16, 2);                  // set the LCD address to 0x27 or 0x3f
+unsigned char my_rfid[] = {163, 130, 226, 173, 110}; // replace with your RFID value
 
 // DECLARE PINS
 #define SERVO_PIN 3
@@ -21,6 +21,7 @@ unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID val
 #define RED_PUSH_BTN 11
 #define light_sensor 13
 #define LAMP A0
+#define BLUE_PUSH_BTN A1
 #define MOTOR A2
 #define bluePin 22  // B connected to digital pin 22
 #define greenPin 23 // G connected to digital pin 23
@@ -110,9 +111,9 @@ void loop()
     // search card
     lcd.setCursor(8, 1);
     lcd.print(rfid.isCard());
-    if (rfid.isCard())
+    if ((bool)rfid.isCard())
     {
-        delay(10);
+        delay(100);
         Serial.println("Find the card!");
         // read serial number
         if (rfid.readCardSerial())
@@ -155,6 +156,17 @@ void loop()
 
     rfid.halt(); // Listen RFID module again in next loop
 
+    if (!digitalRead(BLUE_PUSH_BTN))
+    {
+        head.attach(SERVO_PIN);
+        head.write(20);
+        delay(3000);
+        head.write(135);
+        delay(400);
+        head.detach();
+        digitalWrite(SERVO_PIN, LOW);
+    }
+
     distance = watch(); // get supersonic distance in cm
     if (distance < 20)  // someone is close to the house
     {
@@ -192,7 +204,7 @@ void loop()
     {
         togglePushBTN = !togglePushBTN;
     }
-    if (DHT.temperature >= 20)
+    if (DHT.temperature >= 29)
     {
         if (togglePushBTN)
         {

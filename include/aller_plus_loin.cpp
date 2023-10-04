@@ -22,8 +22,8 @@ WiFiEspServer server(80);                          // create the server on port 
 RingBuffer buf(16);                                // use a ring buffer to increase speed and reduce memory allocation of 16 bytes (change number of bytes here)
 LiquidCrystal_I2C lcd(0x3f, 16, 2);                // set the LCD address to 0x27 or 0x3f
 unsigned char my_rfid[] = {110, 31, 128, 38, 215}; // replace with your RFID serial number
-char ssid[] = "SFR_EB78";                          // replace ****** with your network SSID (name)
-char pass[] = "Marioluigi1242";                    // replace ****** with your network password
+char ssid[] = "******";                            // replace ****** with your network SSID (name)
+char pass[] = "******";                            // replace ****** with your network password
 int maxTemp = 25;                                  // define the max temperature for high temperature actions
 
 // DECLARE PINS
@@ -35,6 +35,7 @@ int maxTemp = 25;                                  // define the max temperature
 #define RED_PUSH_BTN 11
 #define light_sensor 13
 #define LAMP A0
+#define BLUE_PUSH_BTN A1
 #define MOTOR A2
 #define bluePin 22  // B connected to digital pin 22
 #define greenPin 23 // G connected to digital pin 23
@@ -219,7 +220,7 @@ void readings()
 {
   if (currentMillis - previousReadingMillis >= readingInterval)
   {
-    if (rfid.isCard())
+    if ((bool)rfid.isCard())
     {
       checkRFID(); // if a card is read, we will check the serial number and do actions
     }
@@ -384,6 +385,10 @@ void loop()
       if (!digitalRead(RED_PUSH_BTN)) // record button pressed
       {
         togglePushBTN = !togglePushBTN; // toggle button status
+      }
+      if (!digitalRead(BLUE_PUSH_BTN))
+      {                    // Blue button pressed
+        doorNeedOpen = -1; // ask open door
       }
       // Do things
       readings();
